@@ -327,6 +327,80 @@ def test_get_property_returns_none_when_value_does_not_exist(subject):
     assert subject.get_property("2") is None
 
 
+def test_get_property_returns_restored_value_until_received(subject):
+    subject._restore_dps = {"110"}
+    subject._restored_state = {"110": "remembered"}
+    subject._cached_state = {"1": True}
+    assert subject.get_property("110") == "remembered"
+
+    subject._cached_state = {"1": True, "110": "received"}
+    assert subject.get_property("110") == "received"
+
+
+def test_get_property_ignores_restored_value_for_other_dps(subject):
+    subject._restored_state = {"110": "remembered"}
+    subject._cached_state = {"1": True}
+    assert subject.get_property("110") is None
+
+
+def test_restored_value_does_not_make_device_available(subject):
+    subject._restore_dps = {"110"}
+    subject._restored_state = {"110": "remembered"}
+    subject._reset_cached_state()
+    assert not subject.has_returned_state
+
+
+def test_remember_restore_dps_saves_changed_values(subject, mocker):
+    subject._restore_dps = {"110"}
+    subject._restore_store = mocker.MagicMock()
+
+    subject._remember_restore_dps({"1": True, "110": "abc"})
+    assert subject._restored_state == {"110": "abc"}
+    subject._restore_store.async_delay_save.assert_called_once()
+
+    subject._restore_store.async_delay_save.reset_mock()
+    subject._remember_restore_dps({"110": "abc"})
+    subject._restore_store.async_delay_save.assert_not_called()
+
+
+def test_register_entity_with_restore_dp_starts_restore(subject, mocker):
+    store = mocker.patch("custom_components.tuya_local.device.Store")
+    mocker.patch.object(subject, "_async_load_restored", mocker.MagicMock())
+    subject._running = True
+    entity = mocker.MagicMock()
+    dp = mocker.MagicMock()
+    dp.id = "110"
+    dp.force = False
+    dp.restore = True
+    entity._config.dps.return_value = [dp]
+
+    subject.register_entity(entity)
+    subject.register_entity(entity)
+
+    assert subject._restore_dps == {"110"}
+    store.assert_called_once()
+    subject._hass.async_create_task.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_load_restored_keeps_newer_values(subject, mocker):
+    subject._restore_store = mocker.MagicMock()
+    subject._restore_store.async_load = mocker.AsyncMock(
+        return_value={"110": "stored", "111": "other"}
+    )
+    subject._restored_state = {"110": "received since startup"}
+    entity = mocker.MagicMock()
+    subject._children = [entity]
+
+    await subject._async_load_restored()
+
+    assert subject._restored_state == {
+        "110": "received since startup",
+        "111": "other",
+    }
+    entity.async_schedule_update_ha_state.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_async_set_property_sends_to_api(subject, mock_api):
     await subject.async_set_property("1", False)
