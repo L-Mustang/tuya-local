@@ -94,4 +94,5 @@ entities:
       - id: 110
         type: base64
         optional: true
+        restore: true
         name: value
