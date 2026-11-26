@@ -443,6 +443,10 @@ class TuyaDpsConfig:
         return self._config.get("force", False)
 
     @property
+    def restore(self):
+        return self._config.get("restore", False)
+
+    @property
     def sensitive(self):
         return self._config.get("sensitive", False)
 

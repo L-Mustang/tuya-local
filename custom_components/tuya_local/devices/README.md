@@ -217,6 +217,18 @@ explicit request to update them, such plugs will only return monitoring data
 rarely or never. Devices can misbehave if this is used on dps that do not
 require it. Use this only where needed, and generally only on read-only dps.
 
+### `restore`
+
+*Optional, default false.*
+
+A boolean setting to remember the last value received for this dp across
+Home Assistant restarts and reconnections. Some devices only send certain
+dps (such as weekly schedules) when they change, and do not include them in
+status responses or answer explicit update requests, so they would be
+unknown after every restart. With this set, the last value received is
+used until the device sends a new one. The remembered value can be out of
+date if it was changed while Home Assistant was not running.
+
 ### `precision`
 
 *Optional, default None.*

@@ -15,6 +15,7 @@ from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.storage import Store
 
 from .const import (
     API_PROTOCOL_VERSIONS,
@@ -81,6 +82,11 @@ class TuyaLocalDevice(object):
         self._model = model
         self._children = []
         self._force_dps = []
+        # dps marked "restore": their last received values are kept in
+        # storage and used until the device sends them again.
+        self._restore_dps = set()
+        self._restored_state = {}
+        self._restore_store = None
         self._product_ids = []
         self._running = False
         self._shutdown_listener = None
@@ -224,6 +230,7 @@ class TuyaLocalDevice(object):
         self._running = False
         self._children.clear()
         self._force_dps.clear()
+        self._restore_dps.clear()
         if self._refresh_task:
             self._api.set_socketPersistent(False)
             if self._api.parent:
@@ -242,6 +249,9 @@ class TuyaLocalDevice(object):
         for dp in entity._config.dps():
             if dp.force and dp.id not in self._force_dps:
                 self._force_dps.append(int(dp.id))
+            if dp.restore and str(dp.id) not in self._restore_dps:
+                self._restore_dps.add(str(dp.id))
+                self._start_restore()
 
         if not self._running and not self._startup_listener:
             self.start()
@@ -249,6 +259,36 @@ class TuyaLocalDevice(object):
             entity.async_schedule_update_ha_state()
         elif should_poll:
             entity.async_schedule_update_ha_state(True)
+
+    def _start_restore(self):
+        """Load remembered values for restore dps, once per device."""
+        if self._restore_store is not None:
+            return
+        self._restore_store = Store(self._hass, 1, f"{DOMAIN}.restore.{self.unique_id}")
+        self._hass.async_create_task(self._async_load_restored())
+
+    async def _async_load_restored(self):
+        data = await self._restore_store.async_load()
+        if not isinstance(data, dict):
+            return
+        for dp_id, value in data.items():
+            # values received since startup are newer than stored ones
+            self._restored_state.setdefault(dp_id, value)
+        _LOGGER.debug("%s restored %s", self.name, log_json(data))
+        for entity in self._children:
+            entity.async_schedule_update_ha_state()
+
+    @callback
+    def _remember_restore_dps(self, dps):
+        """Remember received values of restore dps and schedule a save."""
+        changed = False
+        for dp_id in self._restore_dps:
+            value = dps.get(dp_id)
+            if value is not None and self._restored_state.get(dp_id) != value:
+                self._restored_state[dp_id] = value
+                changed = True
+        if changed and self._restore_store:
+            self._restore_store.async_delay_save(lambda: dict(self._restored_state), 10)
 
     async def async_unregister_entity(self, entity):
         self._children.remove(entity)
@@ -272,6 +312,8 @@ class TuyaLocalDevice(object):
                     self._cached_state = self._cached_state | poll
                     self._cached_state["updated_at"] = time()
                     self._remove_properties_from_pending_updates(poll)
+                    if self._restore_dps:
+                        self._remember_restore_dps(poll)
 
                     for entity in self._children:
                         # let entities trigger off poll contents directly
@@ -540,6 +582,8 @@ class TuyaLocalDevice(object):
 
     def get_property(self, dps_id):
         cached_state = self._get_cached_state()
+        if dps_id not in cached_state and dps_id in self._restore_dps:
+            return self._restored_state.get(dps_id)
         return cached_state.get(dps_id)
 
     async def async_set_property(self, dps_id, value):
@@ -568,6 +612,11 @@ class TuyaLocalDevice(object):
             if "Err" not in new_state:
                 self._cached_state = self._cached_state | new_state.get("dps", {})
                 self._cached_state["updated_at"] = time()
+                if self._restore_dps:
+                    # this runs in an executor thread
+                    self._hass.loop.call_soon_threadsafe(
+                        self._remember_restore_dps, dict(new_state.get("dps", {}))
+                    )
                 for entity in self._children:
                     for dp in entity._config.dps():
                         # Clear non-persistant dps that were not in the poll

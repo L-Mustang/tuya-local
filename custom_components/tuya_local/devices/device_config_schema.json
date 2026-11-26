@@ -170,6 +170,10 @@
                                     "type": "boolean",
                                     "description": "true to try to force the device to send this dp with full polls. May cause instability if the device does not expect this, generally only works on power/current/voltage sensors for some smartplugs that do not send them by default. Default is false, which should not be specified explicitly to avoid clutter."
                                 },
+                                "restore": {
+                                    "type": "boolean",
+                                    "description": "true to remember the last value of this dp across restarts, and use it until the device sends a new one. For dps that the device only sends when they change, so would otherwise be unknown after a restart. Default is false, which should not be specified explicitly to avoid clutter."
+                                },
                                 "persist": {
                                     "type": "boolean",
                                     "description": "false to clear the last known value of this dp before each full poll. Only needed for dps that are expected to disappear (become null), but not required to be specified for events as they are automatically only fired when explicitly received. Default is true, which should not be specified explicitly to avoid clutter."
