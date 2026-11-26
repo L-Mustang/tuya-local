@@ -3,6 +3,10 @@ name: Radiator controller
 #   - id: UNKNOWN
 #     manufacturer: Avonflow
 #     model: AFD14-H
+products:
+  - id: gkvolzh0v8af9r7l
+    manufacturer: Wiesbaden
+    model: Elara radiator
 entities:
   - entity: climate
     translation_key: thermostat
@@ -87,6 +91,13 @@ entities:
           - dps_val: "90"
             value: "1h30m"
   - entity: text
+    # Weekly program (week_program8), 42 bytes:
+    # 7 days, Monday first, 6 bytes per day.
+    # Each day is 24 hourly slots of 2 bits, 00:00 in the
+    # most significant bits of the first byte.
+    # 00 = comfort, 01 = eco (boost cannot be scheduled).
+    # Example: comfort 07:00-08:00 every day, eco otherwise:
+    # VVRVVVVVVVRVVVVVVVRVVVVVVVRVVVVVVVRVVVVVVVRVVVVVVVRVVVVV
     translation_key: schedule
     category: config
     hidden: true

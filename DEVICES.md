@@ -283,7 +283,7 @@
 - Atorch AT4PTW DIN rail thermostat
 - Atorch S1TW, S1BWP-T/H thermostat smart switches
 - Avatto ME81, WS20R and WT100 thermostats
-- Avonflow AFD14-H radiator thermostat
+- Avonflow AFD14-H radiator thermostat _(also used in Wiesbaden Elara radiators)_
 - Awow/Mi-heat TH213 thermostat (two variants)
 - Baxi Smart Link OpenTherm thermostat
 - Beca BAC-002, BAC-006, BAC-2005ALW, BHT-002/3000, BHP-6000 thermostats
