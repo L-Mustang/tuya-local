@@ -105,4 +105,5 @@ entities:
       - id: 110
         type: base64
         optional: true
+        force: true
         name: value
